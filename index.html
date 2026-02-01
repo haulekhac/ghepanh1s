@@ -3,419 +3,220 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tool Cắt Ảnh - Crop Image Tool</title>
+    <title>Tool Cắt Ảnh – Merged</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:Arial,sans-serif; background:#f5f5f5; padding:20px; }
+        .container { max-width:1000px; margin:0 auto; background:#fff; padding:20px; border:1px solid #ddd; }
+        h1 { margin-bottom:20px; font-size:24px; color:#333; }
+        input[type="file"] { margin-bottom:10px; }
+        .canvas-section { display:none; margin-bottom:20px; }
 
-        body {
-            font-family: Arial, sans-serif;
-            background: #968c8c;
-            padding: 20px;
+        /* ---- scrollable viewport ---- */
+        .viewport {
+            position:relative;
+            width:100%;
+            height:500px;
+            overflow:auto;
+            border:1px solid #ccc;
+            background:#222;
+            margin:10px 0;
         }
-
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            background: white;
-            padding: 20px;
-            border: 1px solid #ddd;
+        .viewport-inner {
+            position:relative;
+            display:inline-block;
         }
-
-        h1 {
-            margin-bottom: 15px;
-            font-size: 30px;
-            color: #0004ff;
+        .viewport-inner canvas { display:block; }
+        #overlayCanvas {
+            position:absolute;
+            top:0; left:0;
+            pointer-events:none;
         }
-
-        .upload-section {
-            margin-bottom: 20px;
-        }
-
-        input[type="file"] {
-            margin-bottom: 10px;
-        }
-
-        .canvas-section {
-            display: none;
-            margin-bottom: 20px;
-        }
-
-        .canvas-container {
-            position: relative;
-            display: inline-block;
-            margin: 15px 0;
-        }
-
-        #canvas {
-            max-width: 100%;
-            border: 1px solid #999;
-            cursor: crosshair;
-        }
-
         .crop-box {
-            position: absolute;
-            border: 2px solid #0066ff;
-            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
-            cursor: move;
-            display: none;
+            position:absolute;
+            border:2px solid #0066ff;
+            box-shadow:0 0 0 9999px rgba(0,0,0,0.5);
+            cursor:move;
+            display:none;
+            z-index:2;
         }
-
         .resize-handle {
-            position: absolute;
-            width: 12px;
-            height: 12px;
-            background: white;
-            border: 2px solid #0066ff;
+            position:absolute; width:12px; height:12px;
+            background:#fff; border:2px solid #0066ff; z-index:3;
         }
+        .handle-tl { top:-6px; left:-6px; cursor:nw-resize; }
+        .handle-tr { top:-6px; right:-6px; cursor:ne-resize; }
+        .handle-bl { bottom:-6px; left:-6px; cursor:sw-resize; }
+        .handle-br { bottom:-6px; right:-6px; cursor:se-resize; }
 
-        .handle-tl { top: -6px; left: -6px; cursor: nw-resize; }
-        .handle-tr { top: -6px; right: -6px; cursor: ne-resize; }
-        .handle-bl { bottom: -6px; left: -6px; cursor: sw-resize; }
-        .handle-br { bottom: -6px; right: -6px; cursor: se-resize; }
+        .controls { margin:15px 0; }
+        .input-group { display:inline-block; margin-right:15px; margin-bottom:10px; }
+        .input-group label { margin-right:5px; }
+        .input-group input { padding:5px; border:1px solid #999; width:80px; }
 
-        .controls {
-            margin: 15px 0;
-        }
+        .preset-positions { margin:15px 0; padding:15px; background:#f9f9f9; border:1px solid #ddd; }
+        .preset-positions h3 { margin:0 0 10px; font-size:14px; }
+        .preset-btn { padding:8px 15px; margin:5px; background:#e3f2fd; border:1px solid #0066ff; cursor:pointer; }
+        .preset-btn:hover { background:#bbdefb; }
+        .preset-btn.active { background:#0066ff; color:#fff; }
 
-        .dimension-inputs {
-            margin: 15px 0;
-        }
+        .auto-crop-section { margin:15px 0; padding:15px; background:#e8f5e9; border:1px solid #4caf50; display:none; }
+        .auto-crop-section h3 { margin:0 0 10px; font-size:14px; color:#2e7d32; }
+        .auto-crop-section select { padding:8px; margin-right:10px; border:1px solid #4caf50; width:250px; }
+        .auto-crop-section button { background:#4caf50; color:#fff; border-color:#4caf50; }
+        .auto-crop-section button:hover { background:#45a049; }
 
-        .input-group {
-            display: inline-block;
-            margin-right: 15px;
-            margin-bottom: 10px;
-        }
+        .multi-crop-section { margin:15px 0; padding:15px; background:#fff3e0; border:1px solid #ff9800; }
+        .multi-crop-section h3 { margin:0 0 10px; font-size:14px; color:#e65100; }
+        .multi-crop-toggle label { font-weight:bold; margin-right:10px; }
+        .multi-crop-list { margin:10px 0; max-height:200px; overflow-y:auto; border:1px solid #ddd; padding:10px; background:#fff; }
+        .multi-crop-item { padding:8px; margin:5px 0; background:#f5f5f5; border:1px solid #ddd; display:flex; justify-content:space-between; align-items:center; cursor:pointer; transition:all .2s; }
+        .multi-crop-item:hover { background:#fff0e0; }
+        .multi-crop-item.selected { background:#ffe0b2; border-color:#ff9800; border-left:4px solid #ff9800; }
+        .area-color-badge { display:inline-block; width:14px; height:14px; border-radius:3px; margin-right:8px; vertical-align:middle; border:1px solid rgba(0,0,0,.2); }
 
-        .input-group label {
-            margin-right: 5px;
-        }
+        .coordinates-display { margin:10px 0; padding:10px; background:#fff3cd; border:1px solid #ffc107; font-family:monospace; font-size:13px; }
+        .save-preset { margin-top:10px; }
 
-        .input-group input {
-            padding: 5px;
-            border: 1px solid #999;
-            width: 80px;
-        }
+        button { padding:8px 20px; margin-right:10px; margin-bottom:5px; border:1px solid #999; background:#fff; cursor:pointer; }
+        button:hover { background:#f0f0f0; }
+        .btn-primary { background:#0066ff; color:#fff; border-color:#0066ff; }
+        .btn-primary:hover { background:#0052cc; }
 
-        .preset-positions {
-            margin: 15px 0;
-            padding: 15px;
-            background: #f9f9f9;
-            border: 1px solid #ddd;
-        }
+        .info { background:#f9f9f9; padding:15px; margin-bottom:20px; border-left:3px solid #0066ff; }
+        .info p { margin:5px 0; font-size:14px; line-height:1.5; }
 
-        .preset-positions h3 {
-            margin: 0 0 10px 0;
-            font-size: 14px;
-        }
+        .image-list { margin:20px 0; display:none; }
+        .image-item { display:flex; align-items:center; padding:10px; margin:5px 0; background:#f9f9f9; border:1px solid #ddd; }
+        .image-item.active { background:#e3f2fd; border-color:#0066ff; }
+        .image-item img { width:60px; height:60px; object-fit:cover; margin-right:10px; border:1px solid #999; }
+        .image-item .info-text { flex:1; }
+        .image-item button { margin:0 5px; }
 
-        .preset-btn {
-            padding: 8px 15px;
-            margin: 5px;
-            background: #e3f2fd;
-            border: 1px solid #0066ff;
-            cursor: pointer;
-        }
+        .cropped-results { margin-top:20px; display:none; }
+        .result-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:15px; margin:15px 0; }
+        .result-item { text-align:center; padding:10px; background:#f9f9f9; border:1px solid #ddd; }
+        .result-item img { max-width:100%; border:1px solid #999; margin-bottom:10px; }
+        .result-item button { width:100%; }
 
-        .preset-btn:hover {
-            background: #bbdefb;
-        }
+        .preview-modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,.7); z-index:1000; justify-content:center; align-items:center; }
+        .preview-modal-overlay.active { display:flex; }
+        .preview-modal { background:#fff; border-radius:8px; padding:20px; max-width:90vw; max-height:90vh; overflow:auto; position:relative; }
+        .preview-modal .close-btn { position:absolute; top:8px; right:12px; font-size:24px; cursor:pointer; color:#333; background:none; border:none; padding:0; }
+        .preview-modal .close-btn:hover { color:#000; background:none; }
+        .preview-modal h3 { margin:0 0 12px; font-size:16px; color:#333; }
+        .preview-modal canvas { display:block; max-width:100%; border:1px solid #ccc; }
+        .preview-modal .preview-info { margin-top:10px; font-size:13px; color:#666; font-family:monospace; }
 
-        .preset-btn.active {
-            background: #0066ff;
-            color: white;
-        }
+        .saved-groups-panel { margin:15px 0; padding:15px; background:#ede7f6; border:1px solid #7e57c2; display:none; }
+        .saved-groups-panel h3 { margin:0 0 10px; font-size:14px; color:#4527a0; }
+        .saved-group-item { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; margin:5px 0; background:#fff; border:1px solid #b39ddb; border-radius:4px; }
+        .saved-group-item .group-name { font-weight:bold; color:#4527a0; }
+        .saved-group-item .group-info { font-size:12px; color:#666; }
+        .saved-group-item .group-actions button { padding:4px 10px; margin-left:5px; font-size:12px; }
 
-        .auto-crop-section {
-            margin: 15px 0;
-            padding: 15px;
-            background: #e8f5e9;
-            border: 1px solid #4caf50;
-        }
-
-        .auto-crop-section h3 {
-            margin: 0 0 10px 0;
-            font-size: 14px;
-            color: #2e7d32;
-        }
-
-        .auto-crop-section select {
-            padding: 8px;
-            margin-right: 10px;
-            border: 1px solid #4caf50;
-            width: 250px;
-        }
-
-        .auto-crop-section button {
-            background: #4caf50;
-            color: white;
-            border-color: #4caf50;
-        }
-
-        .auto-crop-section button:hover {
-            background: #45a049;
-        }
-
-        .multi-crop-section {
-            margin: 15px 0;
-            padding: 15px;
-            background: #fff3e0;
-            border: 1px solid #ff9800;
-        }
-
-        .multi-crop-section h3 {
-            margin: 0 0 10px 0;
-            font-size: 14px;
-            color: #e65100;
-        }
-
-        .multi-crop-toggle {
-            margin: 10px 0;
-        }
-
-        .multi-crop-toggle label {
-            font-weight: bold;
-            margin-right: 10px;
-        }
-
-        .multi-crop-list {
-            margin: 10px 0;
-            max-height: 200px;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            padding: 10px;
-            background: white;
-        }
-
-        .multi-crop-item {
-            padding: 8px;
-            margin: 5px 0;
-            background: #f5f5f5;
-            border: 1px solid #ddd;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .multi-crop-item.selected {
-            background: #ffe0b2;
-            border-color: #ff9800;
-        }
-
-        .coordinates-display {
-            margin: 10px 0;
-            padding: 10px;
-            background: #fff3cd;
-            border: 1px solid #ffc107;
-            font-family: monospace;
-            font-size: 13px;
-        }
-
-        .save-preset {
-            margin-top: 10px;
-        }
-
-        button {
-            padding: 8px 20px;
-            margin-right: 10px;
-            margin-bottom: 5px;
-            border: 1px solid #999;
-            background: #fff;
-            cursor: pointer;
-        }
-
-        button:hover {
-            background: #f0f0f0;
-        }
-
-        .btn-primary {
-            background: #0066ff;
-            color: white;
-            border-color: #0066ff;
-        }
-
-        .btn-primary:hover {
-            background: #0052cc;
-        }
-
-        .preview-section {
-            margin-top: 20px;
-            display: none;
-        }
-
-        #previewCanvas {
-            border: 1px solid #999;
-            margin: 15px 0;
-            max-width: 100%;
-        }
-
-        .info {
-            background: #f9f9f9;
-            padding: 15px;
-            margin-bottom: 20px;
-            border-left: 3px solid #0066ff;
-        }
-
-        .info p {
-            margin: 5px 0;
-            font-size: 14px;
-            line-height: 1.5;
-        }
-
-        .image-list {
-            margin: 20px 0;
-            display: none;
-        }
-
-        .image-item {
-            display: flex;
-            align-items: center;
-            padding: 10px;
-            margin: 5px 0;
-            background: #f9f9f9;
-            border: 1px solid #ddd;
-        }
-
-        .image-item.active {
-            background: #e3f2fd;
-            border-color: #0066ff;
-        }
-
-        .image-item img {
-            width: 60px;
-            height: 60px;
-            object-fit: cover;
-            margin-right: 10px;
-            border: 1px solid #999;
-        }
-
-        .image-item .info-text {
-            flex: 1;
-        }
-
-        .image-item button {
-            margin: 0 5px;
-        }
-
-        .cropped-results {
-            margin-top: 20px;
-            display: none;
-        }
-
-        .result-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 15px;
-            margin: 15px 0;
-        }
-
-        .result-item {
-            text-align: center;
-            padding: 10px;
-            background: #f9f9f9;
-            border: 1px solid #ddd;
-        }
-
-        .result-item img {
-            max-width: 100%;
-            border: 1px solid #999;
-            margin-bottom: 10px;
-        }
-
-        .result-item button {
-            width: 100%;
-        }
+        /* zoom toolbar */
+        .zoom-bar { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+        .zoom-bar button { min-width:32px; padding:5px 8px; font-size:14px; margin:0; }
+        .zoom-info { padding:4px 8px; font-size:12px; color:#666; background:#f5f5f5; border:1px solid #ddd; border-radius:4px; min-width:60px; text-align:center; }
+        .arrow-pad { display:grid; grid-template-columns:30px 30px 30px; grid-template-rows:24px 24px 24px; gap:2px; margin-left:12px; }
+        .arrow-pad button { padding:0; margin:0; font-size:12px; background:#eee; border:1px solid #ccc; border-radius:3px; display:flex; align-items:center; justify-content:center; min-width:unset; }
+        .arrow-pad .center { background:#ddd; border-radius:3px; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Tool cắt ảnh</h1>
-        
-        <div class="info">
-            <p>HDSD: Chọn nhiều ảnh → Cắt từng ảnh → Tải tất cả về</p>
-            <button onclick="resetAllData()" style="background: #f44336; color: white; border: none; padding: 8px 15px; margin-left: 10px;">Reset hết dữ liệu</button>
-        </div>
+<div class="container">
+    <h1>Tool cắt ảnh</h1>
+    <div class="info">
+        <p>Chọn nhiều ảnh → Cắt từng ảnh → Tải tất cả về</p>
+        <button onclick="resetAllData()" style="background:#f44336;color:#fff;border:none;padding:8px 15px;margin-left:10px;">Reset hết dữ liệu</button>
+    </div>
 
-        <div class="auto-crop-section" id="autoCropSection" style="display: none;">
-            <h3>⚡ Cắt tự động</h3>
-            <select id="autoCropPreset">
-                <option value="">Chọn vị trí cắt...</option>
-            </select>
-            <button onclick="autoCropAll()">Cắt tất cả ảnh tự động</button>
-            <br><br>
-            <select id="autoCropMultiGroup">
-                <option value="">Chọn nhóm cắt nhiều...</option>
-            </select>
-            <button onclick="autoCropAllMulti()">Cắt tất cả ảnh (nhiều vùng)</button>
-        </div>
+    <div class="auto-crop-section" id="autoCropSection">
+        <h3>⚡ Cắt tự động</h3>
+        <select id="autoCropPreset"><option value="">Chọn vị trí cắt...</option></select>
+        <button onclick="autoCropAll()">Cắt tất cả ảnh tự động</button><br><br>
+        <select id="autoCropMultiGroup"><option value="">Chọn nhóm cắt nhiều...</option></select>
+        <button onclick="autoCropAllMulti()">Cắt tất cả ảnh (nhiều vùng)</button>
+    </div>
 
-        <div class="upload-section">
-            <input type="file" id="imageInput" accept="image/*" multiple>
-        </div>
+    <div class="upload-section"><input type="file" id="imageInput" accept="image/*" multiple></div>
+    <div class="image-list" id="imageList"></div>
 
-        <div class="image-list" id="imageList"></div>
-
-        <div class="canvas-section" id="canvasSection">
-            <div class="multi-crop-section">
-                <h3>🎯 Cắt nhiều vùng trên 1 ảnh</h3>
-                <div class="multi-crop-toggle">
-                    <label>
-                        <input type="checkbox" id="multiCropMode" onchange="toggleMultiCropMode()">
-                        Bật chế độ cắt nhiều
-                    </label>
-                </div>
-                <div id="multiCropControls" style="display: none;">
-                    <div class="multi-crop-list" id="multiCropList">
-                        <p style="color: #999; margin: 0;">Chưa có vùng cắt nào</p>
-                    </div>
-                    <div style="margin-top: 10px;">
-                        <input type="text" id="multiCropGroupName" placeholder="Tên nhóm (VD: 5 Avatar hàng trên)" style="padding: 5px; width: 250px;">
-                        <button onclick="saveMultiCropGroup()">Lưu nhóm vùng cắt</button>
-                        <button onclick="clearMultiCropAreas()">Xóa tất cả vùng</button>
-                    </div>
+    <div class="canvas-section" id="canvasSection">
+        <!-- multi crop -->
+        <div class="multi-crop-section">
+            <h3>Cắt nhiều vùng trên 1 ảnh</h3>
+            <div class="multi-crop-toggle"><label><input type="checkbox" id="multiCropMode" onchange="toggleMultiCropMode()"> Bật chế độ cắt nhiều</label></div>
+            <div id="multiCropControls" style="display:none;">
+                <div class="multi-crop-list" id="multiCropList"><p style="color:#999;margin:0;">Chưa có vùng cắt nào</p></div>
+                <div style="margin-top:10px;">
+                    <input type="text" id="multiCropGroupName" placeholder="Tên nhóm" style="padding:5px;width:250px;">
+                    <button onclick="saveMultiCropGroup()">Lưu nhóm</button>
+                    <button onclick="clearMultiCropAreas()">Xóa tất cả vùng</button>
                 </div>
             </div>
+        </div>
 
-            <div class="preset-positions">
-                <h3>Vị trí cắt đã lưu:</h3>
-                <div id="presetButtons"></div>
-                <div class="coordinates-display" id="coordDisplay">
-                    Tọa độ hiện tại: X=0, Y=0, Rộng=298, Cao=413
-                </div>
-                <div class="save-preset">
-                    <input type="text" id="presetName" placeholder="Tên vị trí (VD: Avatar trái)" style="padding: 5px; width: 200px;">
-                    <button onclick="savePreset()">Lưu vị trí này</button>
-                    <button onclick="addToMultiCrop()">Thêm vào nhóm cắt nhiều</button>
-                    <button onclick="deleteAllPresets()">Xóa tất cả vị trí</button>
-                </div>
+        <!-- saved groups -->
+        <div class="saved-groups-panel" id="savedGroupsPanel">
+            <h3>Nhóm vùng cắt đã lưu</h3>
+            <div id="savedGroupsList"></div>
+        </div>
+
+        <!-- presets -->
+        <div class="preset-positions">
+            <h3>Vị trí cắt đã lưu:</h3>
+            <div id="presetButtons"></div>
+            <div class="coordinates-display" id="coordDisplay">Tọa độ hiện tại: X=0, Y=0, Rộng=298, Cao=413</div>
+            <div class="save-preset">
+                <input type="text" id="presetName" placeholder="Tên vị trí (VD: Avatar trái)" style="padding:5px;width:200px;">
+                <button onclick="savePreset()">Lưu vị trí này</button>
+                <button onclick="addToMultiCrop()">+ Thêm vào nhóm cắt nhiều</button>
+                <button onclick="deleteAllPresets()">Xóa tất cả vị trí</button>
             </div>
+        </div>
 
-            <div class="dimension-inputs">
-                <div class="input-group">
-                    <label>X:</label>
-                    <input type="number" id="cropX" value="0" min="0">
-                </div>
-                <div class="input-group">
-                    <label>Y:</label>
-                    <input type="number" id="cropY" value="0" min="0">
-                </div>
-                <div class="input-group">
-                    <label>Rộng:</label>
-                    <input type="number" id="cropWidth" value="298" min="1">
-                </div>
-                <div class="input-group">
-                    <label>Cao:</label>
-                    <input type="number" id="cropHeight" value="413" min="1">
-                </div>
-                <button onclick="applyDimensions()">Áp dụng</button>
+        <!-- dimension inputs (onchange from Code 2) -->
+        <div style="margin:15px 0;">
+            <div class="input-group"><label>X:</label><input type="number" id="cropX" value="0" min="0" onchange="applyDimensions()"></div>
+            <div class="input-group"><label>Y:</label><input type="number" id="cropY" value="0" min="0" onchange="applyDimensions()"></div>
+            <div class="input-group"><label>Rộng:</label><input type="number" id="cropWidth" value="298" min="1" onchange="applyDimensions()"></div>
+            <div class="input-group"><label>Cao:</label><input type="number" id="cropHeight" value="413" min="1" onchange="applyDimensions()"></div>
+            <button onclick="applyDimensions()">Áp dụng</button>
+        </div>
+
+        <!-- edit toolbar -->
+        <div id="editAreaToolbar" style="display:none;align-items:center;gap:10px;padding:10px 14px;margin-bottom:10px;background:#fff8e1;border:2px solid #ffc107;border-radius:6px;flex-wrap:wrap;">
+            <span id="editAreaLabel" style="font-weight:bold;color:#e65100;font-size:14px;flex:1;min-width:200px;"></span>
+            <button onclick="confirmEditArea()" style="background:#ff9800;color:#fff;border:none;padding:7px 16px;border-radius:4px;font-size:13px;font-weight:bold;">💾 Lưu thay đổi</button>
+            <button onclick="cancelEditArea()" style="background:#fff;color:#666;border:1px solid #999;padding:7px 14px;border-radius:4px;font-size:13px;">Hủy</button>
+        </div>
+
+        <!-- zoom + arrow controls (Code 1 layout) -->
+        <div class="zoom-bar">
+            <button onclick="manualZoom(1.4)" style="background:#1976d2;color:#fff;border:none;border-radius:4px;">+</button>
+            <button onclick="manualZoom(0.71)" style="background:#1976d2;color:#fff;border:none;border-radius:4px;">−</button>
+            <button onclick="zoomReset()" style="border-radius:4px;font-size:12px;">Fit</button>
+            <span class="zoom-info" id="zoomInfo">100%</span>
+            <div class="arrow-pad">
+                <div></div>
+                <button onclick="scrollBy(0,-60)">▲</button>
+                <div></div>
+                <button onclick="scrollBy(-60,0)">◀</button>
+                <div class="center"></div>
+                <button onclick="scrollBy(60,0)">▶</button>
+                <div></div>
+                <button onclick="scrollBy(0,60)">▼</button>
+                <div></div>
             </div>
+        </div>
 
-            <div class="canvas-container" id="canvasContainer">
+        <!-- viewport scroll container (Code 1) -->
+        <div class="viewport" id="viewport">
+            <div class="viewport-inner" id="vpInner">
                 <canvas id="canvas"></canvas>
+                <canvas id="overlayCanvas"></canvas>
                 <div class="crop-box" id="cropBox">
                     <div class="resize-handle handle-tl"></div>
                     <div class="resize-handle handle-tr"></div>
@@ -423,793 +224,782 @@
                     <div class="resize-handle handle-br"></div>
                 </div>
             </div>
-
-            <div class="controls">
-                <button class="btn-primary" onclick="cropImage()">Cắt ảnh này</button>
-                <button onclick="resetCrop()">Đặt lại</button>
-                <button onclick="nextImage()">Ảnh tiếp theo</button>
-                <button onclick="markDone()">Đã xong</button>
-            </div>
         </div>
 
-        <div class="cropped-results" id="croppedResults">
-            <h2>Đã cắt (<span id="resultCount">0</span>)</h2>
-            <div class="controls">
-                <button class="btn-primary" onclick="downloadAll()">Tải tất cả</button>
-                <button onclick="clearResults()">Xóa hết</button>
-                <button onclick="showCropSection()">Cắt thêm</button>
-            </div>
-            <div class="result-grid" id="resultGrid"></div>
+        <div class="controls">
+            <button class="btn-primary" onclick="cropImage()">Cắt ảnh này</button>
+            <button onclick="resetCrop()">Đặt lại</button>
+            <button onclick="nextImage()">Ảnh tiếp theo</button>
+            <button onclick="markDone()">Đã xong</button>
         </div>
     </div>
 
-    <script>
-        let images = [];
-        let currentImageIndex = 0;
-        let canvas = document.getElementById('canvas');
-        let ctx = canvas.getContext('2d');
-        let cropBox = document.getElementById('cropBox');
-        let isDragging = false;
-        let isResizing = false;
-        let resizeHandle = null;
-        let startX, startY;
-        let cropX = 0, cropY = 0, cropW = 298, cropH = 413;
-        let scale = 1;
-        let croppedResults = [];
-        let presets = JSON.parse(localStorage.getItem('cropPresets') || '[]');
-        let activePreset = null;
-        let multiCropAreas = [];
-        let multiCropGroups = JSON.parse(localStorage.getItem('multiCropGroups') || '[]');
-        let isMultiCropMode = false;
+    <div class="cropped-results" id="croppedResults">
+        <h2>Đã cắt (<span id="resultCount">0</span>)</h2>
+        <div class="controls">
+            <button class="btn-primary" onclick="downloadAll()">Tải tất cả</button>
+            <button onclick="clearResults()">Xóa hết</button>
+            <button onclick="showCropSection()">Cắt thêm</button>
+        </div>
+        <div class="result-grid" id="resultGrid"></div>
+    </div>
+</div>
 
-        // Load presets on start
-        displayPresets();
-        displayMultiCropGroups();
+<!-- Preview Modal -->
+<div class="preview-modal-overlay" id="previewModalOverlay" onclick="closePreviewModal(event)">
+    <div class="preview-modal">
+        <button class="close-btn" onclick="closePreviewModal()">&times;</button>
+        <h3 id="previewModalTitle">Preview</h3>
+        <canvas id="previewModalCanvas"></canvas>
+        <div class="preview-info" id="previewModalInfo"></div>
+    </div>
+</div>
 
-        document.getElementById('imageInput').addEventListener('change', function(e) {
-            const files = e.target.files;
-            if (files.length > 0) {
-                images = [];
-                let loaded = 0;
-                
-                for (let i = 0; i < files.length; i++) {
-                    const reader = new FileReader();
-                    reader.onload = function(event) {
-                        const img = new Image();
-                        img.onload = function() {
-                            images.push({
-                                img: img,
-                                name: files[i].name,
-                                cropped: false
-                            });
-                            loaded++;
-                            
-                            if (loaded === files.length) {
-                                currentImageIndex = 0;
-                                displayImageList();
-                                loadImage(0);
-                            }
-                        }
-                        img.src = event.target.result;
-                    }
-                    reader.readAsDataURL(files[i]);
-                }
-            }
-        });
+<script>
+// ============ COLORS ============
+const AREA_COLORS = ['#ff0000','#00aaff','#00dd44','#ff9900','#cc44ff','#ff0077','#44dddd','#ffdd00','#8855ff','#ff6633'];
 
-        function displayImageList() {
-            const list = document.getElementById('imageList');
-            list.innerHTML = '';
-            list.style.display = 'block';
-            
-            images.forEach((imgData, index) => {
-                const item = document.createElement('div');
-                item.className = 'image-item';
-                if (index === currentImageIndex) item.classList.add('active');
-                
-                const thumb = document.createElement('img');
-                thumb.src = imgData.img.src;
-                
-                const info = document.createElement('div');
-                info.className = 'info-text';
-                info.innerHTML = `
-                    <div><strong>${imgData.name}</strong></div>
-                    <div style="color: #666; font-size: 12px;">
-                        ${imgData.img.width} x ${imgData.img.height}
-                        ${imgData.cropped ? ' - ✓ Đã cắt' : ''}
-                    </div>
-                `;
-                
-                const btn = document.createElement('button');
-                btn.textContent = 'Chọn';
-                btn.onclick = () => loadImage(index);
-                
-                item.appendChild(thumb);
-                item.appendChild(info);
-                item.appendChild(btn);
-                list.appendChild(item);
-            });
-        }
+// ============ STATE ============
+let images = [], currentImageIndex = 0;
+const canvas        = document.getElementById('canvas');
+const ctx           = canvas.getContext('2d');
+const overlayCanvas = document.getElementById('overlayCanvas');
+const overlayCtx    = overlayCanvas.getContext('2d');
+const cropBox       = document.getElementById('cropBox');
+const viewport      = document.getElementById('viewport');
 
-        function loadImage(index) {
-            if (index < 0 || index >= images.length) return;
-            
-            currentImageIndex = index;
-            const imgData = images[index];
-            
-            const maxWidth = document.querySelector('.container').offsetWidth - 60;
-            const maxHeight = 600;
-            
-            scale = Math.min(maxWidth / imgData.img.width, maxHeight / imgData.img.height, 1);
-            
-            canvas.width = imgData.img.width * scale;
-            canvas.height = imgData.img.height * scale;
-            
-            ctx.drawImage(imgData.img, 0, 0, canvas.width, canvas.height);
-            
-            document.getElementById('canvasSection').style.display = 'block';
-            
-            cropW = parseInt(document.getElementById('cropWidth').value);
-            cropH = parseInt(document.getElementById('cropHeight').value);
-            cropX = (canvas.width - cropW) / 2;
-            cropY = (canvas.height - cropH) / 2;
-            
-            updateCropBox();
-            displayImageList();
-        }
+let isDragging = false, isResizing = false, resizeHandle = null;
+let startX, startY;
 
-        function updateCropBox() {
-            cropBox.style.display = 'block';
-            cropBox.style.left = cropX + 'px';
-            cropBox.style.top = cropY + 'px';
-            cropBox.style.width = cropW + 'px';
-            cropBox.style.height = cropH + 'px';
-            
-            // Update coordinate display
-            const realX = Math.round(cropX / scale);
-            const realY = Math.round(cropY / scale);
-            const realW = Math.round(cropW / scale);
-            const realH = Math.round(cropH / scale);
-            
-            document.getElementById('coordDisplay').innerHTML = 
-                `Tọa độ hiện tại: X=${realX}, Y=${realY}, Rộng=${realW}, Cao=${realH}<br>` +
-                `Tọa độ trên canvas: X=${Math.round(cropX)}, Y=${Math.round(cropY)}, Rộng=${Math.round(cropW)}, Cao=${Math.round(cropH)}`;
-            
-            // Update input fields
-            document.getElementById('cropX').value = Math.round(cropX);
-            document.getElementById('cropY').value = Math.round(cropY);
-            document.getElementById('cropWidth').value = Math.round(cropW);
-            document.getElementById('cropHeight').value = Math.round(cropH);
-        }
+// --- REAL coords (on original image) — from Code 2 naming ---
+let realCropX = 0, realCropY = 0, realCropW = 298, realCropH = 413;
 
-        function applyDimensions() {
-            cropX = parseInt(document.getElementById('cropX').value) || 0;
-            cropY = parseInt(document.getElementById('cropY').value) || 0;
-            cropW = parseInt(document.getElementById('cropWidth').value);
-            cropH = parseInt(document.getElementById('cropHeight').value);
-            
-            if (cropX + cropW > canvas.width) cropX = canvas.width - cropW;
-            if (cropY + cropH > canvas.height) cropY = canvas.height - cropH;
-            if (cropX < 0) cropX = 0;
-            if (cropY < 0) cropY = 0;
-            
-            updateCropBox();
-        }
+// --- View state (Code 1 scroll-zoom model) ---
+let scale     = 1;      // current render scale = baseScale * zoomLevel
+let baseScale = 1;      // fits image into viewport at zoom=1
+let zoomLevel = 1;
 
-        cropBox.addEventListener('mousedown', function(e) {
-            if (e.target.classList.contains('resize-handle')) {
-                isResizing = true;
-                resizeHandle = e.target;
-            } else {
-                isDragging = true;
-            }
-            startX = e.clientX;
-            startY = e.clientY;
-            e.preventDefault();
-        });
+// --- Debounce timer (Code 2 optimization) ---
+let autoZoomTimer = null;
 
-        document.addEventListener('mousemove', function(e) {
-            if (isDragging) {
-                const dx = e.clientX - startX;
-                const dy = e.clientY - startY;
-                
-                cropX = Math.max(0, Math.min(canvas.width - cropW, cropX + dx));
-                cropY = Math.max(0, Math.min(canvas.height - cropH, cropY + dy));
-                
-                updateCropBox();
-                startX = e.clientX;
-                startY = e.clientY;
-            } else if (isResizing && resizeHandle) {
-                const dx = e.clientX - startX;
-                const dy = e.clientY - startY;
-                
-                if (resizeHandle.classList.contains('handle-br')) {
-                    cropW = Math.max(50, Math.min(canvas.width - cropX, cropW + dx));
-                    cropH = Math.max(50, Math.min(canvas.height - cropY, cropH + dy));
-                } else if (resizeHandle.classList.contains('handle-bl')) {
-                    const newW = Math.max(50, cropW - dx);
-                    const newX = Math.max(0, cropX + dx);
-                    if (newX + newW <= canvas.width) {
-                        cropX = newX;
-                        cropW = newW;
-                    }
-                    cropH = Math.max(50, Math.min(canvas.height - cropY, cropH + dy));
-                } else if (resizeHandle.classList.contains('handle-tr')) {
-                    cropW = Math.max(50, Math.min(canvas.width - cropX, cropW + dx));
-                    const newH = Math.max(50, cropH - dy);
-                    const newY = Math.max(0, cropY + dy);
-                    if (newY + newH <= canvas.height) {
-                        cropY = newY;
-                        cropH = newH;
-                    }
-                } else if (resizeHandle.classList.contains('handle-tl')) {
-                    const newW = Math.max(50, cropW - dx);
-                    const newX = Math.max(0, cropX + dx);
-                    if (newX + newW <= canvas.width) {
-                        cropX = newX;
-                        cropW = newW;
-                    }
-                    const newH = Math.max(50, cropH - dy);
-                    const newY = Math.max(0, cropY + dy);
-                    if (newY + newH <= canvas.height) {
-                        cropY = newY;
-                        cropH = newH;
-                    }
-                }
-                
-                updateCropBox();
-                startX = e.clientX;
-                startY = e.clientY;
-            }
-        });
+let croppedResults = [];
+let presets        = JSON.parse(localStorage.getItem('cropPresets') || '[]');
+let multiCropAreas = [];
+let multiCropGroups = JSON.parse(localStorage.getItem('multiCropGroups') || '[]');
+let isMultiCropMode = false;
+let selectedAreaIndex = -1;
+let editingGroupIdx = -1, editingAreaIdx = -1;
 
-        document.addEventListener('mouseup', function() {
-            isDragging = false;
-            isResizing = false;
-            resizeHandle = null;
-        });
+// ============ INIT ============
+displayPresets();
+displayMultiCropGroups();
+renderSavedGroupsPanel();
 
-        function cropImage() {
-            if (images.length === 0) return;
-            
-            const imgData = images[currentImageIndex];
-            const outputWidth = parseInt(document.getElementById('cropWidth').value);
-            const outputHeight = parseInt(document.getElementById('cropHeight').value);
-            
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCanvas.width = outputWidth;
-            tempCanvas.height = outputHeight;
-            
-            const sourceX = cropX / scale;
-            const sourceY = cropY / scale;
-            const sourceW = cropW / scale;
-            const sourceH = cropH / scale;
-            
-            tempCtx.drawImage(imgData.img, 
-                sourceX, sourceY, sourceW, sourceH,
-                0, 0, outputWidth, outputHeight
-            );
-            
-            const dataUrl = tempCanvas.toDataURL('image/png');
-            const originalName = imgData.name.replace(/\.[^/.]+$/, "");
-            
-            croppedResults.push({
-                dataUrl: dataUrl,
-                name: originalName + '_cropped.png'
-            });
-            
-            images[currentImageIndex].cropped = true;
-            
-            displayResults();
-            displayImageList();
-        }
-
-        function displayResults() {
-            const resultsSection = document.getElementById('croppedResults');
-            const grid = document.getElementById('resultGrid');
-            const count = document.getElementById('resultCount');
-            
-            resultsSection.style.display = 'block';
-            count.textContent = croppedResults.length;
-            
-            grid.innerHTML = '';
-            croppedResults.forEach((result, index) => {
-                const item = document.createElement('div');
-                item.className = 'result-item';
-                
-                const img = document.createElement('img');
-                img.src = result.dataUrl;
-                
-                const name = document.createElement('div');
-                name.textContent = result.name;
-                name.style.fontSize = '12px';
-                name.style.marginBottom = '5px';
-                name.style.wordBreak = 'break-all';
-                
-                const btn = document.createElement('button');
-                btn.textContent = 'Tải';
-                btn.onclick = () => downloadSingle(index);
-                
-                item.appendChild(img);
-                item.appendChild(name);
-                item.appendChild(btn);
-                grid.appendChild(item);
-            });
-        }
-
-        function downloadSingle(index) {
-            const result = croppedResults[index];
-            const link = document.createElement('a');
-            link.download = result.name;
-            link.href = result.dataUrl;
-            link.click();
-        }
-
-        function downloadAll() {
-            croppedResults.forEach((result, index) => {
-                setTimeout(() => {
-                    const link = document.createElement('a');
-                    link.download = result.name;
-                    link.href = result.dataUrl;
-                    link.click();
-                }, index * 200);
-            });
-        }
-
-        function clearResults() {
-            if (confirm('Xóa tất cả ảnh đã cắt?')) {
-                croppedResults = [];
-                images.forEach(img => img.cropped = false);
-                displayResults();
-                displayImageList();
-                document.getElementById('croppedResults').style.display = 'none';
-            }
-        }
-
-        function resetCrop() {
-            cropW = parseInt(document.getElementById('cropWidth').value);
-            cropH = parseInt(document.getElementById('cropHeight').value);
-            cropX = (canvas.width - cropW) / 2;
-            cropY = (canvas.height - cropH) / 2;
-            updateCropBox();
-        }
-
-        function nextImage() {
-            if (currentImageIndex < images.length - 1) {
-                loadImage(currentImageIndex + 1);
-            } else if (images.length > 0) {
-                loadImage(0);
-            }
-        }
-
-        function markDone() {
-            document.getElementById('canvasSection').style.display = 'none';
-            if (croppedResults.length > 0) {
-                document.getElementById('croppedResults').scrollIntoView({ behavior: 'smooth' });
-            }
-        }
-
-        function showCropSection() {
-            document.getElementById('canvasSection').style.display = 'block';
-            document.getElementById('canvasSection').scrollIntoView({ behavior: 'smooth' });
-        }
-
-        function savePreset() {
-            const name = document.getElementById('presetName').value.trim();
-            if (!name) {
-                alert('Nhập tên vị trí');
-                return;
-            }
-            
-            const preset = {
-                name: name,
-                x: Math.round(cropX),
-                y: Math.round(cropY),
-                width: Math.round(cropW),
-                height: Math.round(cropH)
+// ============ FILE INPUT ============
+document.getElementById('imageInput').addEventListener('change', function(e){
+    const files = e.target.files;
+    if(!files.length) return;
+    images = [];
+    let loaded = 0;
+    for(let i = 0; i < files.length; i++){
+        const reader = new FileReader();
+        const idx = i;
+        reader.onload = function(ev){
+            const img = new Image();
+            img.onload = function(){
+                images.push({ img, name: files[idx].name, cropped: false });
+                if(++loaded === files.length){ currentImageIndex = 0; displayImageList(); loadImage(0); }
             };
-            
-            presets.push(preset);
-            localStorage.setItem('cropPresets', JSON.stringify(presets));
-            document.getElementById('presetName').value = '';
-            displayPresets();
-            alert('Đã lưu vị trí: ' + name);
-        }
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(files[i]);
+    }
+});
 
-        function displayPresets() {
-            const container = document.getElementById('presetButtons');
-            const dropdown = document.getElementById('autoCropPreset');
-            
-            container.innerHTML = '';
-            dropdown.innerHTML = '<option value="">Chọn vị trí cắt...</option>';
-            
-            if (presets.length === 0 && multiCropGroups.length === 0) {
-                container.innerHTML = '<span style="color: #999;">Chưa có vị trí nào được lưu</span>';
-                document.getElementById('autoCropSection').style.display = 'none';
-                return;
-            }
-            
-            document.getElementById('autoCropSection').style.display = 'block';
-            
-            presets.forEach((preset, index) => {
-                // Preset buttons
-                const btn = document.createElement('button');
-                btn.className = 'preset-btn';
-                btn.textContent = `${preset.name} (${preset.width}x${preset.height})`;
-                btn.onclick = () => applyPreset(index);
-                
-                const delBtn = document.createElement('button');
-                delBtn.textContent = '×';
-                delBtn.style.marginLeft = '5px';
-                delBtn.style.padding = '5px 10px';
-                delBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    deletePreset(index);
-                };
-                
-                const wrapper = document.createElement('span');
-                wrapper.appendChild(btn);
-                wrapper.appendChild(delBtn);
-                container.appendChild(wrapper);
-                
-                // Dropdown option
-                const option = document.createElement('option');
-                option.value = index;
-                option.textContent = `${preset.name} (X=${preset.x}, Y=${preset.y}, ${preset.width}x${preset.height})`;
-                dropdown.appendChild(option);
-            });
-        }
+// ============ IMAGE LIST ============
+function displayImageList(){
+    const list = document.getElementById('imageList');
+    list.innerHTML = ''; list.style.display = 'block';
+    images.forEach((d, i) => {
+        const item = document.createElement('div');
+        item.className = 'image-item' + (i === currentImageIndex ? ' active' : '');
+        const thumb = document.createElement('img'); thumb.src = d.img.src;
+        const info = document.createElement('div'); info.className = 'info-text';
+        info.innerHTML = `<div><strong>${d.name}</strong></div><div style="color:#666;font-size:12px;">${d.img.width}x${d.img.height}${d.cropped ? ' ✓ Đã cắt' : ''}</div>`;
+        const btn = document.createElement('button'); btn.textContent = 'Chọn'; btn.onclick = () => loadImage(i);
+        item.appendChild(thumb); item.appendChild(info); item.appendChild(btn);
+        list.appendChild(item);
+    });
+}
 
-        function displayMultiCropGroups() {
-            const dropdown = document.getElementById('autoCropMultiGroup');
-            dropdown.innerHTML = '<option value="">Chọn nhóm cắt nhiều...</option>';
-            
-            multiCropGroups.forEach((group, index) => {
-                const option = document.createElement('option');
-                option.value = index;
-                option.textContent = `${group.name} (${group.areas.length} vùng)`;
-                dropdown.appendChild(option);
-            });
-            
-            if (multiCropGroups.length > 0 || presets.length > 0) {
-                document.getElementById('autoCropSection').style.display = 'block';
-            }
-        }
+// ============ LOAD IMAGE ============
+function loadImage(index){
+    if(index < 0 || index >= images.length) return;
+    currentImageIndex = index;
+    const d = images[index];
+    const vpW = viewport.clientWidth  || 960;
+    const vpH = viewport.clientHeight || 500;
+    baseScale = Math.min(vpW / d.img.width, vpH / d.img.height, 4);
+    zoomLevel = 1;
+    scale = baseScale;
 
-        function applyPreset(index) {
-            const preset = presets[index];
-            cropX = preset.x;
-            cropY = preset.y;
-            cropW = preset.width;
-            cropH = preset.height;
-            
-            activePreset = index;
-            updateCropBox();
-            
-            // Highlight active preset
-            const buttons = document.querySelectorAll('.preset-btn');
-            buttons.forEach((btn, i) => {
-                btn.classList.toggle('active', i === index);
-            });
-        }
+    rebuildCanvas();
 
-        function deletePreset(index) {
-            if (confirm('Xóa vị trí này?')) {
-                presets.splice(index, 1);
-                localStorage.setItem('cropPresets', JSON.stringify(presets));
-                displayPresets();
-            }
-        }
+    // center crop using current W/H inputs
+    realCropW = parseInt(document.getElementById('cropWidth').value)  || 298;
+    realCropH = parseInt(document.getElementById('cropHeight').value) || 413;
+    realCropX = (d.img.width  - realCropW) / 2;
+    realCropY = (d.img.height - realCropH) / 2;
 
-        function deleteAllPresets() {
-            if (confirm('Xóa tất cả vị trí đã lưu?')) {
-                presets = [];
-                localStorage.setItem('cropPresets', JSON.stringify(presets));
-                displayPresets();
-            }
-        }
+    updateCropBox();
+    drawOverlay();
+    displayImageList();
+    updateZoomUI();
+    centerOnCrop();
 
-        function autoCropAll() {
-            const presetIndex = document.getElementById('autoCropPreset').value;
-            
-            if (presetIndex === '') {
-                alert('Chọn vị trí cắt trước');
-                return;
-            }
-            
-            if (images.length === 0) {
-                alert('Chưa có ảnh nào được tải lên');
-                return;
-            }
-            
-            const preset = presets[parseInt(presetIndex)];
-            const totalImages = images.length;
-            let processed = 0;
-            
-            if (!confirm(`Cắt tự động ${totalImages} ảnh với vị trí "${preset.name}"?`)) {
-                return;
-            }
-            
-            // Clear existing results
-            croppedResults = [];
-            
-            // Process each image
-            images.forEach((imgData, index) => {
-                setTimeout(() => {
-                    autoCropSingleImage(imgData, preset);
-                    processed++;
-                    
-                    // Mark as cropped
-                    images[index].cropped = true;
-                    
-                    // Update display after all done
-                    if (processed === totalImages) {
-                        displayResults();
-                        displayImageList();
-                        alert(`Đã cắt xong ${totalImages} ảnh!`);
-                        document.getElementById('croppedResults').scrollIntoView({ behavior: 'smooth' });
-                    }
-                }, index * 100);
-            });
-        }
+    document.getElementById('canvasSection').style.display = 'block';
+}
 
-        function autoCropSingleImage(imgData, preset) {
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            
-            // Calculate scale for this specific image
-            const maxWidth = 1000;
-            const maxHeight = 600;
-            const imgScale = Math.min(maxWidth / imgData.img.width, maxHeight / imgData.img.height, 1);
-            
-            // Use preset dimensions (these are already in canvas coordinates)
-            tempCanvas.width = preset.width;
-            tempCanvas.height = preset.height;
-            
-            // Convert canvas coordinates back to real image coordinates
-            const sourceX = preset.x / imgScale;
-            const sourceY = preset.y / imgScale;
-            const sourceW = preset.width / imgScale;
-            const sourceH = preset.height / imgScale;
-            
-            // Draw cropped image at preset size
-            tempCtx.drawImage(imgData.img, 
-                sourceX, sourceY, sourceW, sourceH,
-                0, 0, preset.width, preset.height
-            );
-            
-            const dataUrl = tempCanvas.toDataURL('image/png');
-            const originalName = imgData.name.replace(/\.[^/.]+$/, "");
-            
-            croppedResults.push({
-                dataUrl: dataUrl,
-                name: originalName + '_cropped.png'
-            });
-        }
+function rebuildCanvas(){
+    if(!images.length) return;
+    scale = baseScale * zoomLevel;
+    const d   = images[currentImageIndex];
+    const dpr = window.devicePixelRatio || 1;
 
-        function toggleMultiCropMode() {
-            isMultiCropMode = document.getElementById('multiCropMode').checked;
-            document.getElementById('multiCropControls').style.display = isMultiCropMode ? 'block' : 'none';
-            
-            if (isMultiCropMode) {
-                displayMultiCropAreas();
-            }
-        }
+    // CSS size = image * scale
+    const cssW = d.img.width  * scale;
+    const cssH = d.img.height * scale;
 
-        function addToMultiCrop() {
-            // Auto-enable multi-crop mode if not enabled
-            if (!isMultiCropMode) {
-                document.getElementById('multiCropMode').checked = true;
-                toggleMultiCropMode();
-            }
-            
-            // Save REAL coordinates (on original image), not canvas coordinates
-            const realX = Math.round(cropX / scale);
-            const realY = Math.round(cropY / scale);
-            const realW = Math.round(cropW / scale);
-            const realH = Math.round(cropH / scale);
-            
-            const area = {
-                x: realX,
-                y: realY,
-                width: realW,
-                height: realH,
-                name: `Vùng ${multiCropAreas.length + 1}`
-            };
-            
-            multiCropAreas.push(area);
-            displayMultiCropAreas();
-            
-            // Show notification
-            alert(`✅ Đã thêm vùng ${multiCropAreas.length}: ${area.width}x${area.height} tại X=${area.x}, Y=${area.y}`);
-        }
+    // Pixel buffer = CSS * dpr → sharp on retina / HiDPI
+    canvas.width         = cssW * dpr;
+    canvas.height        = cssH * dpr;
+    canvas.style.width   = cssW + 'px';
+    canvas.style.height  = cssH + 'px';
 
-        function displayMultiCropAreas() {
-            const list = document.getElementById('multiCropList');
-            
-            if (multiCropAreas.length === 0) {
-                list.innerHTML = '<p style="color: #999; margin: 0;">Chưa có vùng cắt nào</p>';
-                return;
-            }
-            
-            list.innerHTML = '';
-            multiCropAreas.forEach((area, index) => {
-                const item = document.createElement('div');
-                item.className = 'multi-crop-item';
-                
-                const info = document.createElement('span');
-                info.textContent = `${area.name}: X=${area.x}, Y=${area.y}, ${area.width}x${area.height}`;
-                
-                const btnContainer = document.createElement('div');
-                
-                const applyBtn = document.createElement('button');
-                applyBtn.textContent = 'Xem';
-                applyBtn.style.marginRight = '5px';
-                applyBtn.onclick = () => {
-                    // Convert real coordinates back to canvas coordinates for display
-                    cropX = area.x * scale;
-                    cropY = area.y * scale;
-                    cropW = area.width * scale;
-                    cropH = area.height * scale;
-                    updateCropBox();
-                };
-                
-                const delBtn = document.createElement('button');
-                delBtn.textContent = 'Xóa';
-                delBtn.onclick = () => {
-                    multiCropAreas.splice(index, 1);
-                    displayMultiCropAreas();
-                };
-                
-                btnContainer.appendChild(applyBtn);
-                btnContainer.appendChild(delBtn);
-                
-                item.appendChild(info);
-                item.appendChild(btnContainer);
-                list.appendChild(item);
-            });
-        }
+    overlayCanvas.width        = canvas.width;
+    overlayCanvas.height       = canvas.height;
+    overlayCanvas.style.width  = cssW + 'px';
+    overlayCanvas.style.height = cssH + 'px';
 
-        function clearMultiCropAreas() {
-            if (confirm('Xóa tất cả vùng cắt?')) {
-                multiCropAreas = [];
-                displayMultiCropAreas();
-            }
-        }
+    // Scale ctx to dpr → all drawing hits native pixel res
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(d.img, 0, 0, cssW, cssH);
 
-        function saveMultiCropGroup() {
-            if (multiCropAreas.length === 0) {
-                alert('Chưa có vùng cắt nào để lưu');
-                return;
-            }
-            
-            const name = document.getElementById('multiCropGroupName').value.trim();
-            if (!name) {
-                alert('Nhập tên nhóm');
-                return;
-            }
-            
-            const group = {
-                name: name,
-                areas: [...multiCropAreas]
-            };
-            
-            multiCropGroups.push(group);
-            localStorage.setItem('multiCropGroups', JSON.stringify(multiCropGroups));
-            
-            document.getElementById('multiCropGroupName').value = '';
-            multiCropAreas = [];
-            displayMultiCropAreas();
-            displayMultiCropGroups();
-            
-            alert(`Đã lưu nhóm "${name}" với ${group.areas.length} vùng cắt`);
-        }
+    overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
 
-        function autoCropAllMulti() {
-            const groupIndex = document.getElementById('autoCropMultiGroup').value;
-            
-            if (groupIndex === '') {
-                alert('Chọn nhóm cắt nhiều trước');
-                return;
-            }
-            
-            if (images.length === 0) {
-                alert('Chưa có ảnh nào được tải lên');
-                return;
-            }
-            
-            const group = multiCropGroups[parseInt(groupIndex)];
-            const totalImages = images.length;
-            const areasPerImage = group.areas.length;
-            let processed = 0;
-            
-            if (!confirm(`Cắt tự động ${totalImages} ảnh với ${areasPerImage} vùng/ảnh = ${totalImages * areasPerImage} ảnh tổng?`)) {
-                return;
-            }
-            
-            // Clear existing results
-            croppedResults = [];
-            
-            // Process each image
-            images.forEach((imgData, imgIndex) => {
-                // Process each area for this image
-                group.areas.forEach((area, areaIndex) => {
-                    setTimeout(() => {
-                        autoCropSingleImageMulti(imgData, area, imgIndex, areaIndex);
-                        processed++;
-                        
-                        // Update display after all done
-                        if (processed === totalImages * areasPerImage) {
-                            // Mark all images as cropped
-                            images.forEach((img, i) => {
-                                images[i].cropped = true;
-                            });
-                            
-                            displayResults();
-                            displayImageList();
-                            alert(`Đã cắt xong ${totalImages * areasPerImage} ảnh!`);
-                            document.getElementById('croppedResults').scrollIntoView({ behavior: 'smooth' });
-                        }
-                    }, (imgIndex * areasPerImage + areaIndex) * 100);
-                });
-            });
-        }
+// ============ ZOOM (scroll-based, Code 1) ============
+function manualZoom(factor){
+    if(!images.length) return;
+    // anchor = centre of viewport in real-image coords
+    const vp = viewport;
+    const realAnchorX = (vp.scrollLeft + vp.clientWidth  / 2) / scale;
+    const realAnchorY = (vp.scrollTop  + vp.clientHeight / 2) / scale;
 
-        function autoCropSingleImageMulti(imgData, area, imgIndex, areaIndex) {
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            
-            // Area coordinates are already in REAL image coordinates, not canvas coordinates
-            // So we use them directly
-            tempCanvas.width = area.width;
-            tempCanvas.height = area.height;
-            
-            // Draw cropped image directly using real coordinates
-            tempCtx.drawImage(imgData.img, 
-                area.x, area.y, area.width, area.height,
-                0, 0, area.width, area.height
-            );
-            
-            const dataUrl = tempCanvas.toDataURL('image/png');
-            const originalName = imgData.name.replace(/\.[^/.]+$/, "");
-            
-            croppedResults.push({
-                dataUrl: dataUrl,
-                name: `${originalName}_area${areaIndex + 1}.png`
-            });
-        }
+    zoomLevel = Math.max(0.3, Math.min(10, zoomLevel * factor));
+    scale = baseScale * zoomLevel;
+    rebuildCanvas();
+    updateCropBox();
+    drawOverlay();
+    updateZoomUI();
 
-        function resetAllData() {
-            if (confirm('XÓA TẤT CẢ dữ liệu đã lưu?\n\n- Tất cả vị trí cắt đã lưu\n- Tất cả nhóm cắt nhiều\n- Ảnh đã cắt\n\nKhông thể hoàn tác!')) {
-                if (confirm('Chắc chắn chứ? Dữ liệu sẽ mất hết!')) {
-                    // Clear localStorage
-                    localStorage.removeItem('cropPresets');
-                    localStorage.removeItem('multiCropGroups');
-                    
-                    // Clear variables
-                    presets = [];
-                    multiCropGroups = [];
-                    multiCropAreas = [];
-                    croppedResults = [];
-                    images = [];
-                    
-                    // Reset UI
-                    displayPresets();
-                    displayMultiCropGroups();
-                    displayMultiCropAreas();
-                    document.getElementById('imageList').style.display = 'none';
-                    document.getElementById('canvasSection').style.display = 'none';
-                    document.getElementById('croppedResults').style.display = 'none';
-                    document.getElementById('autoCropSection').style.display = 'none';
-                    document.getElementById('imageInput').value = '';
-                    document.getElementById('multiCropMode').checked = false;
-                    toggleMultiCropMode();
-                    
-                    alert('✅ Đã xóa tất cả dữ liệu!');
-                }
-            }
+    // scroll so anchor stays in place
+    vp.scrollLeft = realAnchorX * scale - vp.clientWidth  / 2;
+    vp.scrollTop  = realAnchorY * scale - vp.clientHeight / 2;
+}
+
+function zoomReset(){
+    if(!images.length) return;
+    zoomLevel = 1; scale = baseScale;
+    rebuildCanvas();
+    updateCropBox();
+    drawOverlay();
+    updateZoomUI();
+    centerOnCrop();
+}
+
+function autoZoomIntoCrop(){
+    if(!images.length) return;
+    const vp     = viewport;
+    const vpW    = vp.clientWidth;
+    const vpH    = vp.clientHeight;
+
+    const targetScale = Math.min(
+        (vpW * 0.7) / realCropW,
+        (vpH * 0.7) / realCropH,
+        baseScale * 10
+    );
+    const targetZoom = Math.max(1, targetScale / baseScale);
+
+    // already close enough? just scroll
+    if(Math.abs(targetZoom - zoomLevel) / zoomLevel < 0.08){
+        centerOnCrop();
+        return;
+    }
+
+    zoomLevel = targetZoom;
+    scale = baseScale * zoomLevel;
+    rebuildCanvas();
+    updateCropBox();
+    drawOverlay();
+    updateZoomUI();
+    centerOnCrop();
+}
+
+function centerOnCrop(){
+    const vp = viewport;
+    const cx = (realCropX + realCropW / 2) * scale;
+    const cy = (realCropY + realCropH / 2) * scale;
+    vp.scrollLeft = cx - vp.clientWidth  / 2;
+    vp.scrollTop  = cy - vp.clientHeight / 2;
+}
+
+function scrollBy(dx, dy){
+    viewport.scrollLeft += dx;
+    viewport.scrollTop  += dy;
+}
+
+function updateZoomUI(){
+    document.getElementById('zoomInfo').textContent = Math.round(zoomLevel * 100) + '%';
+}
+
+// ============ CROP BOX (real → canvas via scale) ============
+function updateCropBox(){
+    const cx = realCropX * scale;
+    const cy = realCropY * scale;
+    const cw = realCropW * scale;
+    const ch = realCropH * scale;
+
+    cropBox.style.display = 'block';
+    cropBox.style.left   = cx + 'px';
+    cropBox.style.top    = cy + 'px';
+    cropBox.style.width  = cw + 'px';
+    cropBox.style.height = ch + 'px';
+
+    document.getElementById('coordDisplay').innerHTML =
+        `Tọa độ (ảnh gốc): X=${Math.round(realCropX)}, Y=${Math.round(realCropY)}, Rộng=${Math.round(realCropW)}, Cao=${Math.round(realCropH)}`;
+    document.getElementById('cropX').value      = Math.round(realCropX);
+    document.getElementById('cropY').value      = Math.round(realCropY);
+    document.getElementById('cropWidth').value  = Math.round(realCropW);
+    document.getElementById('cropHeight').value = Math.round(realCropH);
+}
+
+// ============ OVERLAY ============
+function drawOverlay(){
+    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    if(!isMultiCropMode || !multiCropAreas.length) return;
+    multiCropAreas.forEach((a, i) => {
+        const c  = AREA_COLORS[i % AREA_COLORS.length];
+        const x  = a.x     * scale;
+        const y  = a.y     * scale;
+        const w  = a.width * scale;
+        const h  = a.height* scale;
+        overlayCtx.fillStyle   = c + '33';
+        overlayCtx.fillRect(x, y, w, h);
+        overlayCtx.strokeStyle = c;
+        overlayCtx.lineWidth   = i === selectedAreaIndex ? 3 : 2;
+        overlayCtx.setLineDash(i === selectedAreaIndex ? [] : [6, 3]);
+        overlayCtx.strokeRect(x, y, w, h);
+        overlayCtx.setLineDash([]);
+        overlayCtx.fillStyle = c;
+        overlayCtx.font = 'bold 13px Arial';
+        overlayCtx.fillText(`#${i+1}`, x + 4, y + 16);
+    });
+}
+
+// ============ APPLY DIMENSIONS (safer clamp from Code 2) ============
+function applyDimensions(){
+    if(!images.length) return;
+    const img = images[currentImageIndex].img;
+
+    realCropX = Math.max(0, Math.min(img.width  - 50, parseInt(document.getElementById('cropX').value)     || 0));
+    realCropY = Math.max(0, Math.min(img.height - 50, parseInt(document.getElementById('cropY').value)     || 0));
+    realCropW = Math.max(50, Math.min(img.width  - realCropX, parseInt(document.getElementById('cropWidth').value)  || 100));
+    realCropH = Math.max(50, Math.min(img.height - realCropY, parseInt(document.getElementById('cropHeight').value) || 100));
+
+    updateCropBox();
+    autoZoomIntoCrop();
+}
+
+// ============ DRAG & RESIZE ============
+cropBox.addEventListener('mousedown', function(e){
+    if(e.target.classList.contains('resize-handle')){ isResizing = true; resizeHandle = e.target; }
+    else { isDragging = true; }
+    startX = e.clientX; startY = e.clientY;
+    e.preventDefault();
+});
+
+document.addEventListener('mousemove', function(e){
+    if(!isDragging && !isResizing) return;
+    if(!images.length) return;
+
+    const img = images[currentImageIndex].img;
+    // convert pixel delta → real-image delta
+    const dx = (e.clientX - startX) / scale;
+    const dy = (e.clientY - startY) / scale;
+
+    if(isDragging){
+        realCropX = Math.max(0, Math.min(img.width  - realCropW, realCropX + dx));
+        realCropY = Math.max(0, Math.min(img.height - realCropH, realCropY + dy));
+    } else if(isResizing && resizeHandle){
+        if(resizeHandle.classList.contains('handle-br')){
+            realCropW = Math.max(50, Math.min(img.width  - realCropX, realCropW + dx));
+            realCropH = Math.max(50, Math.min(img.height - realCropY, realCropH + dy));
+        } else if(resizeHandle.classList.contains('handle-bl')){
+            const nw = Math.max(50, realCropW - dx);
+            const nx = Math.max(0, realCropX + dx);
+            if(nx + nw <= img.width){ realCropX = nx; realCropW = nw; }
+            realCropH = Math.max(50, Math.min(img.height - realCropY, realCropH + dy));
+        } else if(resizeHandle.classList.contains('handle-tr')){
+            realCropW = Math.max(50, Math.min(img.width - realCropX, realCropW + dx));
+            const nh = Math.max(50, realCropH - dy);
+            const ny = Math.max(0, realCropY + dy);
+            if(ny + nh <= img.height){ realCropY = ny; realCropH = nh; }
+        } else if(resizeHandle.classList.contains('handle-tl')){
+            const nw = Math.max(50, realCropW - dx);
+            const nx = Math.max(0, realCropX + dx);
+            if(nx + nw <= img.width){ realCropX = nx; realCropW = nw; }
+            const nh = Math.max(50, realCropH - dy);
+            const ny = Math.max(0, realCropY + dy);
+            if(ny + nh <= img.height){ realCropY = ny; realCropH = nh; }
         }
-    </script>
+    }
+
+    updateCropBox();
+    startX = e.clientX; startY = e.clientY;
+
+    // debounce auto-zoom (Code 2 pattern)
+    if(autoZoomTimer) clearTimeout(autoZoomTimer);
+    autoZoomTimer = setTimeout(() => { autoZoomIntoCrop(); }, 300);
+});
+
+document.addEventListener('mouseup', function(){
+    if(isDragging || isResizing){
+        if(autoZoomTimer){ clearTimeout(autoZoomTimer); autoZoomTimer = null; }
+        autoZoomIntoCrop();
+    }
+    isDragging = false; isResizing = false; resizeHandle = null;
+});
+
+// ============ CROP IMAGE ============
+function cropImage(){
+    if(!images.length) return;
+    const d = images[currentImageIndex];
+    const tmp = document.createElement('canvas');
+    tmp.width  = Math.round(realCropW);
+    tmp.height = Math.round(realCropH);
+    const tmpCtx = tmp.getContext('2d');
+    tmpCtx.imageSmoothingEnabled = true;
+    tmpCtx.imageSmoothingQuality = 'high';
+    tmpCtx.drawImage(d.img, realCropX, realCropY, realCropW, realCropH, 0, 0, tmp.width, tmp.height);
+    const name = d.name.replace(/\.[^/.]+$/, '');
+    croppedResults.push({ dataUrl: tmp.toDataURL('image/png'), name: name + '_cropped.png' });
+    images[currentImageIndex].cropped = true;
+    displayResults(); displayImageList();
+}
+
+// ============ RESULTS ============
+function displayResults(){
+    const sec  = document.getElementById('croppedResults');
+    const grid = document.getElementById('resultGrid');
+    sec.style.display = 'block';
+    document.getElementById('resultCount').textContent = croppedResults.length;
+    grid.innerHTML = '';
+    croppedResults.forEach((r, i) => {
+        const item = document.createElement('div'); item.className = 'result-item';
+        const img  = document.createElement('img'); img.src = r.dataUrl;
+        const nm   = document.createElement('div'); nm.textContent = r.name;
+        nm.style.cssText = 'font-size:12px;margin-bottom:5px;word-break:break-all;';
+        const btn  = document.createElement('button'); btn.textContent = 'Tải';
+        btn.onclick = () => downloadSingle(i);
+        item.appendChild(img); item.appendChild(nm); item.appendChild(btn);
+        grid.appendChild(item);
+    });
+}
+
+// ============ ZIP + DOWNLOAD ============
+function dataUrlToUint8(d){ const b = atob(d.split(',')[1]), a = new Uint8Array(b.length); for(let i=0;i<b.length;i++) a[i]=b.charCodeAt(i); return a; }
+function crc32(buf){ let c=0xFFFFFFFF; for(let i=0;i<buf.length;i++){ c^=buf[i]; for(let j=0;j<8;j++) c=(c>>>1)^(c&1?0xEDB88320:0); } return(c^0xFFFFFFFF)>>>0; }
+function buildZip(files){
+    const lh=[],ch=[];let off=0;
+    files.forEach(f=>{
+        const nb=new TextEncoder().encode(f.name);
+        const l=new Uint8Array(30+nb.length),d=new DataView(l.buffer);
+        d.setUint32(0,0x04034b50,true);d.setUint16(4,20,true);d.setUint16(8,0,true);
+        d.setUint32(14,crc32(f.data),true);d.setUint32(18,f.data.length,true);d.setUint32(22,f.data.length,true);
+        d.setUint16(26,nb.length,true);l.set(nb,30);
+        lh.push({h:l,data:f.data,off});
+        const c=new Uint8Array(46+nb.length),cd=new DataView(c.buffer);
+        cd.setUint32(0,0x02014b50,true);cd.setUint16(4,20,true);cd.setUint16(6,20,true);
+        cd.setUint32(16,d.getUint32(14,true),true);cd.setUint32(20,f.data.length,true);cd.setUint32(24,f.data.length,true);
+        cd.setUint16(28,nb.length,true);cd.setUint32(42,off,true);c.set(nb,46);
+        ch.push(c); off+=l.length+f.data.length;
+    });
+    let cdOff=off,cdSz=0;ch.forEach(c=>cdSz+=c.length);
+    const eocd=new Uint8Array(22),e=new DataView(eocd.buffer);
+    e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);
+    e.setUint32(12,cdSz,true);e.setUint32(16,cdOff,true);
+    const zip=new Uint8Array(off+cdSz+22);let p=0;
+    lh.forEach(i=>{zip.set(i.h,p);p+=i.h.length;zip.set(i.data,p);p+=i.data.length;});
+    ch.forEach(c=>{zip.set(c,p);p+=c.length;});zip.set(eocd,p);
+    return zip;
+}
+function downloadSingle(i){
+    const r = croppedResults[i];
+    saveSingle(r.name, dataUrlToUint8(r.dataUrl));
+}
+async function saveSingle(name, data){
+    if(window.showSaveFilePicker){
+        try{
+            const h=await window.showSaveFilePicker({suggestedName:name,types:[{description:'Image',accept:{'image/png':['.png']}}]});
+            const w=await h.createWritable();await w.write(new Blob([data]));await w.close();return;
+        }catch(e){if(e.name==='AbortError')return;}
+    }
+    const u=URL.createObjectURL(new Blob([data],{type:'image/png'}));
+    const a=document.createElement('a');a.download=name;a.href=u;a.click();URL.revokeObjectURL(u);
+}
+async function downloadAll(){
+    if(!croppedResults.length) return;
+
+    // --- Modern path: showDirectoryPicker → save từng file vào thư mục ---
+    if(window.showDirectoryPicker){
+        try{
+            const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'downloads' });
+            let saved = 0;
+            for(const r of croppedResults){
+                const fileHandle = await dirHandle.getFileHandle(r.name, { create: true });
+                const writable   = await fileHandle.createWritable();
+                await writable.write(new Blob([dataUrlToUint8(r.dataUrl)], { type: 'image/png' }));
+                await writable.close();
+                saved++;
+            }
+            alert(`Đã lưu ${saved} file vào thư mục!`);
+            return;
+        }catch(e){
+            if(e.name === 'AbortError') return; // user cancel
+            // nếu lỗi khác thì rơi về fallback dưới
+            console.warn('showDirectoryPicker lỗi, dùng fallback:', e);
+        }
+    }
+
+    // --- Fallback: download từng file bằng a.click() ---
+    for(let i = 0; i < croppedResults.length; i++){
+        const r = croppedResults[i];
+        const blob = new Blob([dataUrlToUint8(r.dataUrl)], { type: 'image/png' });
+        const u = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.download = r.name;
+        a.href = u;
+        a.click();
+        URL.revokeObjectURL(u);
+        // delay nhỏ để browser không block consecutive downloads
+        await new Promise(res => setTimeout(res, 150));
+    }
+}
+
+function clearResults(){
+    if(confirm('Xóa tất cả ảnh đã cắt?')){ croppedResults=[]; images.forEach(d=>d.cropped=false); displayResults(); displayImageList(); document.getElementById('croppedResults').style.display='none'; }
+}
+function resetCrop(){
+    if(!images.length) return;
+    const img = images[currentImageIndex].img;
+    realCropW = parseInt(document.getElementById('cropWidth').value)  || 298;
+    realCropH = parseInt(document.getElementById('cropHeight').value) || 413;
+    realCropX = (img.width  - realCropW) / 2;
+    realCropY = (img.height - realCropH) / 2;
+    updateCropBox();
+}
+function nextImage(){ loadImage(currentImageIndex < images.length - 1 ? currentImageIndex + 1 : 0); }
+function markDone(){ document.getElementById('canvasSection').style.display='none'; if(croppedResults.length) document.getElementById('croppedResults').scrollIntoView({behavior:'smooth'}); }
+function showCropSection(){ document.getElementById('canvasSection').style.display='block'; document.getElementById('canvasSection').scrollIntoView({behavior:'smooth'}); }
+
+// ============ PRESETS ============
+function savePreset(){
+    const name = document.getElementById('presetName').value.trim();
+    if(!name){ alert('Nhập tên vị trí'); return; }
+    presets.push({ name, x: Math.round(realCropX), y: Math.round(realCropY), width: Math.round(realCropW), height: Math.round(realCropH) });
+    localStorage.setItem('cropPresets', JSON.stringify(presets));
+    document.getElementById('presetName').value = '';
+    displayPresets(); alert('Đã lưu: ' + name);
+}
+function displayPresets(){
+    const con = document.getElementById('presetButtons');
+    const dd  = document.getElementById('autoCropPreset');
+    con.innerHTML = ''; dd.innerHTML = '<option value="">Chọn vị trí cắt...</option>';
+    if(!presets.length && !multiCropGroups.length){ con.innerHTML='<span style="color:#999;">Chưa có vị trí nào</span>'; document.getElementById('autoCropSection').style.display='none'; return; }
+    document.getElementById('autoCropSection').style.display = 'block';
+    presets.forEach((p, i) => {
+        const btn = document.createElement('button'); btn.className = 'preset-btn';
+        btn.textContent = `${p.name} (${p.width}x${p.height})`; btn.onclick = () => applyPreset(i);
+        const del = document.createElement('button'); del.textContent = '×'; del.style.cssText = 'margin-left:5px;padding:5px 10px;';
+        del.onclick = (e) => { e.stopPropagation(); deletePreset(i); };
+        const w = document.createElement('span'); w.appendChild(btn); w.appendChild(del); con.appendChild(w);
+        const opt = document.createElement('option'); opt.value = i; opt.textContent = `${p.name} (${p.width}x${p.height})`; dd.appendChild(opt);
+    });
+}
+function displayMultiCropGroups(){
+    const dd = document.getElementById('autoCropMultiGroup');
+    dd.innerHTML = '<option value="">Chọn nhóm cắt nhiều...</option>';
+    multiCropGroups.forEach((g, i) => { const o = document.createElement('option'); o.value = i; o.textContent = `${g.name} (${g.areas.length} vùng)`; dd.appendChild(o); });
+    if(multiCropGroups.length || presets.length) document.getElementById('autoCropSection').style.display = 'block';
+}
+function applyPreset(i){
+    const p = presets[i];
+    realCropX = p.x; realCropY = p.y; realCropW = p.width; realCropH = p.height;
+    updateCropBox(); autoZoomIntoCrop();
+    document.querySelectorAll('.preset-btn').forEach((b, j) => b.classList.toggle('active', j === i));
+}
+function deletePreset(i){ if(confirm('Xóa vị trí này?')){ presets.splice(i,1); localStorage.setItem('cropPresets',JSON.stringify(presets)); displayPresets(); } }
+function deleteAllPresets(){ if(confirm('Xóa tất cả?')){ presets=[]; localStorage.setItem('cropPresets',JSON.stringify(presets)); displayPresets(); } }
+
+// ============ AUTO CROP ALL (extracted helper from Code 2) ============
+function autoCropSingleImage(imgData, preset){
+    const tmp = document.createElement('canvas');
+    tmp.width = preset.width; tmp.height = preset.height;
+    const tmpCtx = tmp.getContext('2d');
+    tmpCtx.imageSmoothingEnabled = true;
+    tmpCtx.imageSmoothingQuality = 'high';
+    tmpCtx.drawImage(imgData.img, preset.x, preset.y, preset.width, preset.height, 0, 0, preset.width, preset.height);
+    croppedResults.push({ dataUrl: tmp.toDataURL('image/png'), name: imgData.name.replace(/\.[^/.]+$/, '') + '_cropped.png' });
+}
+
+function autoCropAll(){
+    const idx = document.getElementById('autoCropPreset').value;
+    if(idx === ''){ alert('Chọn vị trí cắt trước'); return; }
+    if(!images.length){ alert('Chưa có ảnh'); return; }
+    const p = presets[parseInt(idx)];
+    if(!confirm(`Cắt tự động ${images.length} ảnh với "${p.name}"?`)) return;
+    croppedResults = []; let done = 0;
+    images.forEach((d, i) => {
+        setTimeout(() => {
+            autoCropSingleImage(d, p);
+            images[i].cropped = true;
+            if(++done === images.length){ displayResults(); displayImageList(); alert(`Cắt xong ${images.length} ảnh!`); document.getElementById('croppedResults').scrollIntoView({behavior:'smooth'}); }
+        }, i * 100);
+    });
+}
+
+// ============ MULTI CROP ============
+function toggleMultiCropMode(){
+    isMultiCropMode = document.getElementById('multiCropMode').checked;
+    document.getElementById('multiCropControls').style.display = isMultiCropMode ? 'block' : 'none';
+    displayMultiCropAreas(); drawOverlay();
+}
+function addToMultiCrop(){
+    if(!isMultiCropMode){ document.getElementById('multiCropMode').checked = true; toggleMultiCropMode(); }
+    multiCropAreas.push({ x: Math.round(realCropX), y: Math.round(realCropY), width: Math.round(realCropW), height: Math.round(realCropH), name: `Vùng ${multiCropAreas.length+1}` });
+    displayMultiCropAreas(); drawOverlay();
+    alert(`Thêm vùng #${multiCropAreas.length}: ${Math.round(realCropW)}x${Math.round(realCropH)} tại (${Math.round(realCropX)},${Math.round(realCropY)})`);
+}
+function displayMultiCropAreas(){
+    const list = document.getElementById('multiCropList');
+    if(!multiCropAreas.length){ list.innerHTML='<p style="color:#999;margin:0;">Chưa có vùng cắt nào</p>'; return; }
+    list.innerHTML = '';
+    multiCropAreas.forEach((a, i) => {
+        const c    = AREA_COLORS[i % AREA_COLORS.length];
+        const item = document.createElement('div');
+        item.className = 'multi-crop-item' + (i === selectedAreaIndex ? ' selected' : '');
+        item.onclick = () => {
+            selectedAreaIndex = selectedAreaIndex === i ? -1 : i;
+            realCropX = a.x; realCropY = a.y; realCropW = a.width; realCropH = a.height;
+            updateCropBox(); displayMultiCropAreas(); drawOverlay(); autoZoomIntoCrop();
+        };
+        const left  = document.createElement('div'); left.style = 'display:flex;align-items:center;';
+        const badge = document.createElement('span'); badge.className = 'area-color-badge'; badge.style.background = c;
+        const info  = document.createElement('span'); info.innerHTML = `<strong>#${i+1}</strong> ${a.width}×${a.height} @ (${a.x},${a.y})`;
+        left.appendChild(badge); left.appendChild(info);
+        const btns  = document.createElement('div');
+        const pBtn  = document.createElement('button'); pBtn.textContent = '👁'; pBtn.style.cssText = 'padding:4px 8px;font-size:12px;background:#e3f2fd;border-color:#0066ff;';
+        pBtn.onclick = (e) => { e.stopPropagation(); if(images.length) openPreviewModal(a, i); };
+        const dBtn  = document.createElement('button'); dBtn.textContent = '✕'; dBtn.style.cssText = 'padding:4px 8px;font-size:12px;background:#ffebee;border-color:#f44336;color:#c62828;';
+        dBtn.onclick = (e) => { e.stopPropagation(); multiCropAreas.splice(i,1); if(selectedAreaIndex >= multiCropAreas.length) selectedAreaIndex=-1; displayMultiCropAreas(); drawOverlay(); };
+        btns.appendChild(pBtn); btns.appendChild(dBtn);
+        item.appendChild(left); item.appendChild(btns); list.appendChild(item);
+    });
+}
+function clearMultiCropAreas(){ if(confirm('Xóa tất cả vùng?')){ multiCropAreas=[]; selectedAreaIndex=-1; displayMultiCropAreas(); drawOverlay(); } }
+function saveMultiCropGroup(){
+    if(!multiCropAreas.length){ alert('Chưa có vùng'); return; }
+    const name = document.getElementById('multiCropGroupName').value.trim();
+    if(!name){ alert('Nhập tên nhóm'); return; }
+    multiCropGroups.push({ name, areas:[...multiCropAreas] });
+    localStorage.setItem('multiCropGroups', JSON.stringify(multiCropGroups));
+    document.getElementById('multiCropGroupName').value = '';
+    multiCropAreas = []; selectedAreaIndex = -1;
+    displayMultiCropAreas(); drawOverlay(); displayMultiCropGroups(); renderSavedGroupsPanel();
+    alert(`✅ Lưu nhóm "${name}"`);
+}
+
+// ============ PREVIEW MODAL ============
+function openPreviewModal(area, idx){
+    if(!images.length) return;
+    const d   = images[currentImageIndex];
+    const mc  = document.getElementById('previewModalCanvas');
+    const mctx = mc.getContext('2d');
+    mc.width = area.width; mc.height = area.height;
+    mctx.imageSmoothingEnabled = true;
+    mctx.imageSmoothingQuality = 'high';
+    mctx.drawImage(d.img, area.x, area.y, area.width, area.height, 0, 0, area.width, area.height);
+    document.getElementById('previewModalTitle').textContent = `Preview #${idx+1} — "${d.name}"`;
+    document.getElementById('previewModalInfo').textContent  = `X=${area.x} Y=${area.y} ${area.width}×${area.height}`;
+    document.getElementById('previewModalOverlay').classList.add('active');
+}
+function closePreviewModal(e){
+    if(!e || e.target === document.getElementById('previewModalOverlay') || e.target.classList.contains('close-btn'))
+        document.getElementById('previewModalOverlay').classList.remove('active');
+}
+
+// ============ SAVED GROUPS PANEL ============
+function renderSavedGroupsPanel(){
+    const panel = document.getElementById('savedGroupsPanel');
+    const list  = document.getElementById('savedGroupsList');
+    if(!multiCropGroups.length){ panel.style.display='none'; return; }
+    panel.style.display = 'block'; list.innerHTML = '';
+    multiCropGroups.forEach((g, gi) => {
+        const item = document.createElement('div'); item.className = 'saved-group-item';
+        const left = document.createElement('div');
+        left.innerHTML = `<div class="group-name">${g.name}</div><div class="group-info">${g.areas.length} vùng cắt</div>`;
+        const act = document.createElement('div'); act.className = 'group-actions';
+        const loadBtn = document.createElement('button'); loadBtn.textContent = '📥 Load'; loadBtn.style.cssText = 'background:#e8f5e9;border-color:#4caf50;color:#2e7d32;';
+        loadBtn.onclick = (e) => { e.stopPropagation(); loadGroupIntoEditor(gi); };
+        const prevBtn = document.createElement('button'); prevBtn.textContent = '👁 Preview'; prevBtn.style.cssText = 'background:#e3f2fd;border-color:#0066ff;color:#0052cc;';
+        prevBtn.onclick = (e) => { e.stopPropagation(); previewGroup(gi); };
+        const delBtn = document.createElement('button'); delBtn.textContent = '🗑'; delBtn.style.cssText = 'background:#ffebee;border-color:#f44336;color:#c62828;';
+        delBtn.onclick = (e) => { e.stopPropagation(); if(confirm(`Xóa nhóm "${g.name}"?`)){ multiCropGroups.splice(gi,1); localStorage.setItem('multiCropGroups',JSON.stringify(multiCropGroups)); displayMultiCropGroups(); renderSavedGroupsPanel(); } };
+        act.appendChild(loadBtn); act.appendChild(prevBtn); act.appendChild(delBtn);
+        item.appendChild(left); item.appendChild(act); list.appendChild(item);
+
+        // area rows
+        const areasDiv = document.createElement('div');
+        areasDiv.style.cssText = 'margin-left:18px;margin-bottom:8px;border-left:2px solid #b39ddb;padding-left:10px;';
+        g.areas.forEach((a, ai) => {
+            const c   = AREA_COLORS[ai % AREA_COLORS.length];
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:5px 8px;margin:3px 0;background:#fafafa;border:1px solid #e0e0e0;border-radius:4px;font-size:13px;';
+            const rl  = document.createElement('div'); rl.style = 'display:flex;align-items:center;gap:8px;';
+            const badge = document.createElement('span'); badge.style.cssText = `display:inline-block;width:12px;height:12px;border-radius:3px;background:${c};border:1px solid rgba(0,0,0,.2);`;
+            const info  = document.createElement('span'); info.innerHTML = `<strong>#${ai+1}</strong> ${a.width}×${a.height} @ (${a.x},${a.y})`;
+            rl.appendChild(badge); rl.appendChild(info);
+            const ra = document.createElement('div'); ra.style = 'display:flex;gap:4px;';
+            const editBtn = document.createElement('button'); editBtn.textContent = '✏️ Edit'; editBtn.style.cssText = 'padding:3px 8px;font-size:11px;background:#fff8e1;border-color:#ffc107;color:#f57f17;border-radius:3px;';
+            editBtn.onclick = () => editSavedArea(gi, ai);
+            const pvBtn = document.createElement('button'); pvBtn.textContent = '👁'; pvBtn.style.cssText = 'padding:3px 6px;font-size:11px;background:#e3f2fd;border-color:#90caf9;color:#1565c0;border-radius:3px;';
+            pvBtn.onclick = () => { if(images.length) openPreviewModal(a, ai); };
+            ra.appendChild(editBtn); ra.appendChild(pvBtn);
+            row.appendChild(rl); row.appendChild(ra); areasDiv.appendChild(row);
+        });
+        list.appendChild(areasDiv);
+    });
+}
+
+// ---- Edit saved area ----
+function editSavedArea(gi, ai){
+    if(!images.length){ alert('Cần tải ảnh trước'); return; }
+    const a = multiCropGroups[gi].areas[ai];
+    editingGroupIdx = gi; editingAreaIdx = ai;
+    realCropX = a.x; realCropY = a.y; realCropW = a.width; realCropH = a.height;
+    updateCropBox(); autoZoomIntoCrop();
+    document.getElementById('editAreaToolbar').style.display = 'flex';
+    document.getElementById('editAreaLabel').textContent = `Đang edit: "${multiCropGroups[gi].name}" → Vùng #${ai+1}`;
+    document.getElementById('canvasSection').scrollIntoView({behavior:'smooth'});
+}
+function confirmEditArea(){
+    if(editingGroupIdx < 0) return;
+    multiCropGroups[editingGroupIdx].areas[editingAreaIdx] = {
+        x: Math.round(realCropX), y: Math.round(realCropY),
+        width: Math.round(realCropW), height: Math.round(realCropH),
+        name: multiCropGroups[editingGroupIdx].areas[editingAreaIdx].name
+    };
+    localStorage.setItem('multiCropGroups', JSON.stringify(multiCropGroups));
+    cancelEditArea(); renderSavedGroupsPanel(); displayMultiCropGroups();
+    alert('Đã lưu vùng cắt!');
+}
+function cancelEditArea(){ editingGroupIdx=-1; editingAreaIdx=-1; document.getElementById('editAreaToolbar').style.display='none'; }
+
+function loadGroupIntoEditor(gi){
+    const g = multiCropGroups[gi];
+    multiCropAreas = [...g.areas]; selectedAreaIndex = -1;
+    document.getElementById('multiCropMode').checked = true; isMultiCropMode = true;
+    document.getElementById('multiCropControls').style.display = 'block';
+    displayMultiCropAreas(); drawOverlay();
+    alert(`Load nhóm "${g.name}" (${g.areas.length} vùng)`);
+}
+function previewGroup(gi){
+    if(!images.length){ alert('Cần tải ảnh trước'); return; }
+    const g = multiCropGroups[gi], d = images[currentImageIndex];
+    const mc   = document.getElementById('previewModalCanvas');
+    const mctx = mc.getContext('2d');
+    const cols = Math.min(g.areas.length, 4), rows = Math.ceil(g.areas.length / cols);
+    let maxW = 0, maxH = 0;
+    g.areas.forEach(a => { maxW = Math.max(maxW, a.width); maxH = Math.max(maxH, a.height); });
+    const cW = Math.min(maxW, 200), cH = Math.min(maxH, 200), gap = 8;
+    mc.width = cols * cW + (cols-1) * gap;
+    mc.height = rows * cH + (rows-1) * gap;
+    mctx.fillStyle = '#f0f0f0'; mctx.fillRect(0, 0, mc.width, mc.height);
+    mctx.imageSmoothingEnabled = true;
+    mctx.imageSmoothingQuality = 'high';
+    g.areas.forEach((a, i) => {
+        const col = i % cols, row = Math.floor(i / cols);
+        const px = col * (cW + gap), py = row * (cH + gap);
+        const c  = AREA_COLORS[i % AREA_COLORS.length];
+        const s  = Math.min(cW / a.width, cH / a.height);
+        const dW = a.width * s, dH = a.height * s;
+        mctx.fillStyle = '#fff'; mctx.fillRect(px, py, cW, cH);
+        mctx.drawImage(d.img, a.x, a.y, a.width, a.height, px + (cW-dW)/2, py + (cH-dH)/2, dW, dH);
+        mctx.strokeStyle = c; mctx.lineWidth = 3; mctx.strokeRect(px+.5, py+.5, cW-1, cH-1);
+        mctx.fillStyle = c; mctx.font = 'bold 13px Arial'; mctx.fillText(`#${i+1}`, px+5, py+16);
+    });
+    document.getElementById('previewModalTitle').textContent = `Preview "${g.name}" — "${d.name}"`;
+    document.getElementById('previewModalInfo').textContent  = `${g.areas.length} vùng | ${d.name}`;
+    document.getElementById('previewModalOverlay').classList.add('active');
+}
+
+// ============ AUTO CROP ALL MULTI (extracted helper from Code 2) ============
+function autoCropSingleImageMulti(imgData, area, areaIndex){
+    const tmp = document.createElement('canvas');
+    tmp.width = area.width; tmp.height = area.height;
+    const tmpCtx = tmp.getContext('2d');
+    tmpCtx.imageSmoothingEnabled = true;
+    tmpCtx.imageSmoothingQuality = 'high';
+    tmpCtx.drawImage(imgData.img, area.x, area.y, area.width, area.height, 0, 0, area.width, area.height);
+    croppedResults.push({ dataUrl: tmp.toDataURL('image/png'), name: imgData.name.replace(/\.[^/.]+$/, '') + `_area${areaIndex+1}.png` });
+}
+
+function autoCropAllMulti(){
+    const gi = document.getElementById('autoCropMultiGroup').value;
+    if(gi === ''){ alert('Chọn nhóm trước'); return; }
+    if(!images.length){ alert('Chưa có ảnh'); return; }
+    const g = multiCropGroups[parseInt(gi)];
+    const total = images.length * g.areas.length;
+    if(!confirm(`Cắt ${images.length} ảnh × ${g.areas.length} vùng = ${total} ảnh?`)) return;
+    croppedResults = []; let done = 0;
+    images.forEach((d, ii) => {
+        g.areas.forEach((a, ai) => {
+            setTimeout(() => {
+                autoCropSingleImageMulti(d, a, ai);
+                if(++done === total){ images.forEach((_, i) => images[i].cropped = true); displayResults(); displayImageList(); alert(`Cắt xong ${total} ảnh!`); document.getElementById('croppedResults').scrollIntoView({behavior:'smooth'}); }
+            }, (ii * g.areas.length + ai) * 100);
+        });
+    });
+}
+
+// ============ RESET ALL ============
+function resetAllData(){
+    if(confirm('XÓA TẤT CẢ dữ liệu?') && confirm('Chắc chắn?')){
+        localStorage.removeItem('cropPresets'); localStorage.removeItem('multiCropGroups');
+        presets=[]; multiCropGroups=[]; multiCropAreas=[]; croppedResults=[]; images=[]; selectedAreaIndex=-1;
+        displayPresets(); displayMultiCropGroups(); renderSavedGroupsPanel();
+        document.getElementById('imageList').style.display='none';
+        document.getElementById('canvasSection').style.display='none';
+        document.getElementById('croppedResults').style.display='none';
+        document.getElementById('imageInput').value='';
+        document.getElementById('multiCropMode').checked=false; isMultiCropMode=false;
+        document.getElementById('multiCropControls').style.display='none';
+        alert('✅ Xóa hết!');
+    }
+}
+</script>
 </body>
 </html>
